@@ -42,7 +42,7 @@ long sbi_console_putchar(int ch) {
 void kmain(void) {
 	memset(__bss_start, 0, (size_t)__bss_end - (size_t)__bss_start);
 
-	printf("Num: %d - Hex: %x - String: %s\n", -10005, 255, "hello");
+	printf("\n\nKernel Booted! Built at %s on %s\n\n", __TIME__, __DATE__);
 
 	for (;;) {
 		__asm__ __volatile__("wfi"); // cpu sleep until interrupt
