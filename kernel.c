@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "common.h"
 
 typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;
@@ -39,15 +40,17 @@ long sbi_console_putchar(int ch) {
 }
 
 void console_print(char *s) {
-	while (s) {
-		sbi_console_putchar(*(s++));
+	for (char *ch = s; *ch != '\0'; ch++) {
+		sbi_console_putchar(*ch);
 	}
 }
 
 void kmain(void) {
 	memset(__bss_start, 0, (size_t)__bss_end - (size_t)__bss_start);
 
-	console_print("Hello, World!");
+	console_print("Hello, World!\n");
+
+	printf("Num: %d - Hex: %x - String: %s", -10005, 255, "hello");
 
 	for (;;) {
 		__asm__ __volatile__("wfi"); // cpu sleep until interrupt
