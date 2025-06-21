@@ -9,7 +9,7 @@ IMAGE:=kernel.elf
 OUTPUTS:=$(IMAGE) kernel.map
 
 # Source files and include dirs
-SRC_DIRS := .
+SRC_DIRS := ./src
 BUILD_DIR := ./build
 
 # Get source files
@@ -31,12 +31,14 @@ $(IMAGE) : $(OBJECTS) kernel.ld
 # Build C source files
 $(BUILD_DIR)/%.c.o: %.c
 	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(INC_FLAGS) -c $< -o $@
 
 # Utilities
 .PHONY: run clean objdump
 run : $(IMAGE)
-	echo "Hint: 'Ctrl-a + x' to terminate QEMU"
+	echo -e "\n\n ======================================\n" \
+	     " Hint: 'Ctrl-a + x' to terminate QEMU\n" \
+	     "======================================\n"
 	$(QEMU) $(QEMU_FLAGS) -kernel $(IMAGE)
 clean:
 	rm $(OUTPUTS)
