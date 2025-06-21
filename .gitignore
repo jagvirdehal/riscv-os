@@ -2,3 +2,4 @@ kernel.elf
 kernel.map
 compile_commands.json
 .cache
+build
