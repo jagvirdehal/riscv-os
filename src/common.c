@@ -2,6 +2,63 @@
 
 long sbi_console_putchar(int ch);
 
+void *memset(void *buf, char c, size_t n) {
+	uint8_t *p = (uint8_t *)buf;
+	while (n--)
+		*(p++) = c;
+	return buf;
+}
+
+void *memcpy(void *dst, const void *src, size_t n) {
+	uint8_t *d = (uint8_t *)dst;
+	const uint8_t *s = (const uint8_t *)src;
+	while (n--)
+		*(d++) = *(s++);
+	return dst;
+}
+
+char *strcpy(char *dst, const char *src) {
+	char *d = dst;
+	while (*src)
+		*(d)++ = *(src)++;
+	*d = '\0';
+	return dst;
+}
+
+char *strcpy_s(char *dst, size_t dst_sz, const char *src) {
+	char *d = dst;
+	while (*src && --dst_sz)
+		*(d)++ = *(src)++;
+	*d = '\0';
+	return dst;
+}
+
+char *strncpy(char *dst, const char *src, size_t n) {
+	char *d = dst;
+	while (*src && n--)
+		*(d)++ = *(src)++;
+	*d = '\0';
+	return dst;
+}
+
+int strcmp(const char *s1, const char *s2) {
+	while (*s1 && *s2) {
+		if (*s1 != *s2) break;
+		s1++;
+		s2++;
+	}
+	return *(unsigned char *)s1 - *(unsigned char *)s2;
+}
+
+int strncmp(const char *s1, const char *s2, size_t n) {
+	while (*s1 && *s2 && n--) {
+		if (*s1 != *s2) break;
+		s1++;
+		s2++;
+	}
+	return *(unsigned char *)s1 - *(unsigned char *)s2;
+}
+
 void printf(const char *fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
