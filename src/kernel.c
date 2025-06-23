@@ -23,7 +23,7 @@ sbiret sbi_call(long arg0, long arg1, long arg2, long arg3, long arg4,
 	return (sbiret){.error = a0, .value = a1};
 }
 
-long sbi_console_putchar(int ch) {
+long putchar(int ch) {
 	sbiret r = sbi_call(ch, 0, 0, 0, 0, 0, 0, 1);
 	return r.error; // legacy extensions have return value in a0
 }

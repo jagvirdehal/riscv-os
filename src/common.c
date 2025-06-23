@@ -1,6 +1,6 @@
 #include "common.h"
 
-long sbi_console_putchar(int ch);
+long putchar(int ch);
 
 void *memset(void *buf, char c, size_t n) {
 	uint8_t *p = (uint8_t *)buf;
@@ -66,7 +66,7 @@ void printf(const char *fmt, ...) {
 	for (const char *ch = fmt; *ch != '\0'; ch++) {
 		// print non-% chars as normal
 		if (*ch != '%') {
-			sbi_console_putchar(*ch);
+			putchar(*ch);
 			continue;
 		}
 
@@ -75,19 +75,19 @@ void printf(const char *fmt, ...) {
 		switch (*ch) {
 			// End of string - print '%' and exit
 			case '\0':
-				sbi_console_putchar('%');
+				putchar('%');
 				goto end;
 
 			// Escape for '%'
 			case '%': {
-				sbi_console_putchar(*ch);
+				putchar(*ch);
 			} break;
 
 			// Print as a string
 			case 's': {
 				const char *str = va_arg(args, const char *);
 				for (const char *ch = str; *ch != '\0'; ch++) {
-					sbi_console_putchar(*ch);
+					putchar(*ch);
 				}
 			} break;
 
@@ -96,7 +96,7 @@ void printf(const char *fmt, ...) {
 				int d = va_arg(args, int);
 				unsigned magnitude = d;
 				if (d < 0) {
-					sbi_console_putchar('-');
+					putchar('-');
 					magnitude = -magnitude;
 				}
 
@@ -108,7 +108,7 @@ void printf(const char *fmt, ...) {
 				while (divisor != 0) {
 					unsigned digit =
 					    (magnitude / divisor) % 10;
-					sbi_console_putchar('0' + digit);
+					putchar('0' + digit);
 					divisor /= 10;
 				}
 			} break;
@@ -119,14 +119,14 @@ void printf(const char *fmt, ...) {
 				for (int i = 7; i >= 0; i--) {
 					unsigned nibble =
 					    (value >> (i * 4)) & 0xf;
-					sbi_console_putchar(
+					putchar(
 					    "0123456789abcdef"[nibble]);
 				}
 			} break;
 
 			// TODO: Unsupported format str - print as-is for now
 			default:
-				sbi_console_putchar(*ch);
+				putchar(*ch);
 		}
 	}
 
