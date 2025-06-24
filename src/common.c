@@ -119,8 +119,7 @@ void printf(const char *fmt, ...) {
 				for (int i = 7; i >= 0; i--) {
 					unsigned nibble =
 					    (value >> (i * 4)) & 0xf;
-					putchar(
-					    "0123456789abcdef"[nibble]);
+					putchar("0123456789abcdef"[nibble]);
 				}
 			} break;
 
