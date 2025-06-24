@@ -1,8 +1,12 @@
 #include "kernel.h"
 #include "common.h"
 
-extern char __bss_start[], __bss_end[], __stack_top[];
+// Linker variables
+extern char __bss_start[], __bss_end[];
+extern char __stack_top[];
+extern char __free_memory_start[], __free_memory_end[];
 
+// SBI call
 sbiret sbi_call(long arg0, long arg1, long arg2, long arg3, long arg4,
 		long arg5, long fid, long eid) {
 	// Load register in quotes to variable, and assign to corresponding arg
@@ -123,12 +127,30 @@ void kernel_entry(void) {
 }
 
 void handle_trap(trap_frame *f) {
+	(void)f;
 	uint32_t scause = READ_CSR(scause);
 	uint32_t stval = READ_CSR(stval);
 	uint32_t user_pc = READ_CSR(sepc);
 
 	PANIC("unexpected trap scause=0x%x, stval=0x%x, sepc=0x%x\n", scause,
 	      stval, user_pc);
+}
+
+// Allocates `n` 4KB pages and returns the starting address
+paddr_t alloc_pages(uint32_t n) {
+	static paddr_t next_paddr = (paddr_t)__free_memory_start;
+	paddr_t paddr = next_paddr;
+	next_paddr += n * PAGE_SIZE;
+
+	// Check if we have enough memory
+	if (next_paddr > (paddr_t)__free_memory_end) {
+		PANIC("out of memory");
+	}
+
+	memset((void *)paddr, 0, n * PAGE_SIZE);
+
+	assert(is_aligned(paddr, PAGE_SIZE));
+	return paddr;
 }
 
 void kmain(void) {
@@ -140,7 +162,13 @@ void kmain(void) {
 
 	printf("\n\nKernel Booted! Built at %s on %s\n\n", __TIME__, __DATE__);
 
-	__asm__ __volatile__("unimp");
+	paddr_t paddr0 = alloc_pages(2);
+	paddr_t paddr1 = alloc_pages(1);
+	printf("alloc_pages test: paddr0=%x\n", paddr0);
+	printf("alloc_pages test: paddr1=%x\n", paddr1);
+
+	assert(paddr0 == (paddr_t)__free_memory_start);
+	assert(paddr1 == paddr0 + 2 * PAGE_SIZE);
 
 	for (;;) {
 		__asm__ __volatile__("wfi"); // cpu sleep until interrupt

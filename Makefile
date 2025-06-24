@@ -24,6 +24,9 @@ INC_DIRS := $(shell find $(SRC_DIRS) -type d)
 # Add -I before each folder
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
+.PHONY: all
+all : $(IMAGE)
+
 # Build image
 $(IMAGE) : $(OBJECTS) kernel.ld
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $(IMAGE) $(filter-out %.ld, $^)

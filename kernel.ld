@@ -23,4 +23,9 @@ SECTIONS {
 	. = ALIGN(4);
 	. += 128 * 1024; /* 128KB */
 	__stack_top = .;
+
+	. = ALIGN(4096); /* align to 4KB boundary */
+	__free_memory_start = .;
+	. += 64 * 1024 * 1024; /* 64 MB */
+	__free_memory_end = .;
 }
