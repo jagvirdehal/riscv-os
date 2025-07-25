@@ -15,6 +15,7 @@ process *proc_active = NULL; // active process
 LIST_HEAD(procs_blocked);    // blocked processes
 
 // Special processes
+process kernel_proc = {0};
 process *idle_proc = NULL;
 
 // SBI call
@@ -188,11 +189,6 @@ void switch_context(uint32_t *prev_sp, uint32_t *next_sp) {
 	);
 }
 
-void init_procs(void) {
-	// Clear procs array
-	memset(procs, 0, sizeof(procs));
-}
-
 process *create_process(uint32_t init_fn) {
 	static int last_pid = 0;
 
@@ -226,6 +222,10 @@ process *create_process(uint32_t init_fn) {
 	proc->pid = ++last_pid;
 	proc->state = PROC_READY;
 	proc->sp = (vaddr_t)sp;
+
+	// Move to ready queue
+	list_add_tail(&proc->list, &procs_ready);
+
 	return proc;
 }
 
@@ -258,7 +258,7 @@ process *procb;
 void proca_main(void) {
 	for (;;) {
 		printf("Hello from %s!\n", __func__);
-		switch_context(&proca->sp, &procb->sp);
+		switch_context(&proca->sp, &kernel_proc.sp);
 		delay();
 	}
 }
@@ -266,12 +266,15 @@ void proca_main(void) {
 void procb_main(void) {
 	for (;;) {
 		printf("Hello from %s!\n", __func__);
-		switch_context(&procb->sp, &proca->sp);
+		switch_context(&procb->sp, &kernel_proc.sp);
 		delay();
 	}
 }
 
-void yield(void) {}
+void init_procs(void) {
+	// Clear procs array
+	memset(procs, 0, sizeof(procs));
+}
 
 void init_scheduler(void) {
 	// Add each process to the procs_free list
@@ -282,6 +285,28 @@ void init_scheduler(void) {
 	}
 }
 
+void init(void) {
+	init_procs();	  // setup procs struct
+	init_scheduler(); // setup scheduler
+}
+
+void schedule(void) {
+	if (proc_active != NULL) {
+		list_add_tail(&proc_active->list, &procs_ready);
+		proc_active = NULL;
+	}
+	assert(proc_active == NULL);
+
+	// Remove from ready queue & mark as active task
+	assert(!list_empty(&procs_ready));
+	proc_active = list_first_entry_or_null(&procs_ready, process, list);
+	list_del(&proc_active->list);
+
+	// Switch context from kernel to active task
+	assert(proc_active != NULL);
+	switch_context(&kernel_proc.sp, &proc_active->sp);
+}
+
 void kmain(void) {
 	// clear bss section
 	memset(__bss_start, 0, (size_t)__bss_end - (size_t)__bss_start);
@@ -289,14 +314,21 @@ void kmain(void) {
 	// setup exception vector
 	WRITE_CSR(stvec, (uint32_t)kernel_entry);
 
-	// setup scheduler
-	init_scheduler();
+	// initialization
+	init();
 
 	printf("\n\nKernel Booted! Built at %s on %s\n\n", __TIME__, __DATE__);
 
 	proca = create_process((uint32_t)proca_main);
 	procb = create_process((uint32_t)procb_main);
-	proca_main();
+
+	// Scheduling loop
+	for (;;) {
+		schedule();
+	}
+
+	// switch_context(&kernel_proc.sp, &proca->sp);
+	// proca_main();
 
 	for (;;) {
 		__asm__ __volatile__("wfi"); // cpu sleep until interrupt
