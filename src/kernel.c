@@ -1,10 +1,21 @@
 #include "kernel.h"
 #include "common.h"
+#include "list.h"
 
 // Linker variables
 extern char __bss_start[], __bss_end[];
 extern char __stack_top[];
 extern char __free_memory_start[], __free_memory_end[];
+
+// Processes
+process procs[PROCS_MAX];    // all process descriptors
+LIST_HEAD(procs_free);	     // free processes
+LIST_HEAD(procs_ready);	     // ready processes
+process *proc_active = NULL; // active process
+LIST_HEAD(procs_blocked);    // blocked processes
+
+// Special processes
+process *idle_proc = NULL;
 
 // SBI call
 sbiret sbi_call(long arg0, long arg1, long arg2, long arg3, long arg4,
@@ -136,6 +147,88 @@ void handle_trap(trap_frame *f) {
 	      stval, user_pc);
 }
 
+// Context switch between procs
+__attribute__((naked)) //
+void switch_context(uint32_t *prev_sp, uint32_t *next_sp) {
+	__asm__ __volatile__(
+	    "addi sp, sp, -4 * 13\n" // prepare to push 13 elements to stack
+	    "sw ra, 4 * 0(sp)\n"     // return addr
+	    "sw s0, 4 * 1(sp)\n"     // callee-saved registers
+	    "sw s1, 4 * 2(sp)\n"
+	    "sw s2, 4 * 3(sp)\n"
+	    "sw s3, 4 * 4(sp)\n"
+	    "sw s4, 4 * 5(sp)\n"
+	    "sw s5, 4 * 6(sp)\n"
+	    "sw s6, 4 * 7(sp)\n"
+	    "sw s7, 4 * 8(sp)\n"
+	    "sw s8, 4 * 9(sp)\n"
+	    "sw s9, 4 * 10(sp)\n"
+	    "sw s10, 4 * 11(sp)\n"
+	    "sw s11, 4 * 12(sp)\n"
+
+	    "sw sp, (a0)\n" // save sp to arg0 (prev_sp)
+	    "lw sp, (a1)\n" // load sp from arg1 (next_sp)
+
+	    "lw ra, 4 * 0(sp)\n" // return addr
+	    "lw s0, 4 * 1(sp)\n" // callee-saved registers
+	    "lw s1, 4 * 2(sp)\n"
+	    "lw s2, 4 * 3(sp)\n"
+	    "lw s3, 4 * 4(sp)\n"
+	    "lw s4, 4 * 5(sp)\n"
+	    "lw s5, 4 * 6(sp)\n"
+	    "lw s6, 4 * 7(sp)\n"
+	    "lw s7, 4 * 8(sp)\n"
+	    "lw s8, 4 * 9(sp)\n"
+	    "lw s9, 4 * 10(sp)\n"
+	    "lw s10, 4 * 11(sp)\n"
+	    "lw s11, 4 * 12(sp)\n"
+	    "addi sp, sp, 4 * 13\n" // pop 13 elements from stack
+
+	    "ret\n" // return
+	);
+}
+
+void init_procs(void) {
+	// Clear procs array
+	memset(procs, 0, sizeof(procs));
+}
+
+process *create_process(uint32_t init_fn) {
+	static int last_pid = 0;
+
+	// Find an unused process
+	process *proc = list_first_entry_or_null(&procs_free, process, list);
+
+	if (proc == NULL) {
+		PANIC("ran out of process descriptors");
+	}
+	assert(proc != NULL);
+
+	list_del(&proc->list);
+
+	// Initialize stack
+	uint32_t *sp = (uint32_t *)&proc->kstack[sizeof(proc->kstack)];
+	*(--sp) = 0;	   // s11
+	*(--sp) = 0;	   // s10
+	*(--sp) = 0;	   // s9
+	*(--sp) = 0;	   // s8
+	*(--sp) = 0;	   // s7
+	*(--sp) = 0;	   // s6
+	*(--sp) = 0;	   // s5
+	*(--sp) = 0;	   // s4
+	*(--sp) = 0;	   // s3
+	*(--sp) = 0;	   // s2
+	*(--sp) = 0;	   // s1
+	*(--sp) = 0;	   // s0
+	*(--sp) = init_fn; // ra
+
+	// Initialize fields
+	proc->pid = ++last_pid;
+	proc->state = PROC_READY;
+	proc->sp = (vaddr_t)sp;
+	return proc;
+}
+
 // Allocates `n` 4KB pages and returns the starting address
 paddr_t alloc_pages(uint32_t n) {
 	static paddr_t next_paddr = (paddr_t)__free_memory_start;
@@ -153,6 +246,42 @@ paddr_t alloc_pages(uint32_t n) {
 	return paddr;
 }
 
+void delay(void) {
+	for (int i = 0; i < 300000000; i++) {
+		__asm__ __volatile__("nop");
+	}
+}
+
+process *proca;
+process *procb;
+
+void proca_main(void) {
+	for (;;) {
+		printf("Hello from %s!\n", __func__);
+		switch_context(&proca->sp, &procb->sp);
+		delay();
+	}
+}
+
+void procb_main(void) {
+	for (;;) {
+		printf("Hello from %s!\n", __func__);
+		switch_context(&procb->sp, &proca->sp);
+		delay();
+	}
+}
+
+void yield(void) {}
+
+void init_scheduler(void) {
+	// Add each process to the procs_free list
+	for (int i = 0; i < PROCS_MAX; i++) {
+		list_head *new = &procs[i].list;
+		list_head *head = &procs_free;
+		list_add(new, head);
+	}
+}
+
 void kmain(void) {
 	// clear bss section
 	memset(__bss_start, 0, (size_t)__bss_end - (size_t)__bss_start);
@@ -160,15 +289,14 @@ void kmain(void) {
 	// setup exception vector
 	WRITE_CSR(stvec, (uint32_t)kernel_entry);
 
+	// setup scheduler
+	init_scheduler();
+
 	printf("\n\nKernel Booted! Built at %s on %s\n\n", __TIME__, __DATE__);
 
-	paddr_t paddr0 = alloc_pages(2);
-	paddr_t paddr1 = alloc_pages(1);
-	printf("alloc_pages test: paddr0=%x\n", paddr0);
-	printf("alloc_pages test: paddr1=%x\n", paddr1);
-
-	assert(paddr0 == (paddr_t)__free_memory_start);
-	assert(paddr1 == paddr0 + 2 * PAGE_SIZE);
+	proca = create_process((uint32_t)proca_main);
+	procb = create_process((uint32_t)procb_main);
+	proca_main();
 
 	for (;;) {
 		__asm__ __volatile__("wfi"); // cpu sleep until interrupt

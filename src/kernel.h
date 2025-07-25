@@ -1,6 +1,26 @@
 #pragma once
 
 #include "common.h"
+#include "list.h"
+
+#define PROCS_MAX 8
+
+#define PROC_FREE 0    // Free process descriptor
+#define PROC_READY 1   // Ready/runnable process
+#define PROC_ACTIVE 2  // Currently active process
+#define PROC_BLOCKED 3 // Blocked process
+
+#define KSTACK_SIZE 8 * 1024 // 8KB
+
+// Process descriptor
+typedef struct {
+	int pid;		     // Process id
+	int state;		     // Process state: UNUSED or RUNNABLE
+	vaddr_t sp;		     // Stack pointer
+	uint8_t kstack[KSTACK_SIZE]; // Kernel stack
+
+	list_head list; // Intrusive linkage for scheduling
+} process;
 
 #define PANIC(fmt, ...)                                                        \
 	do {                                                                   \
